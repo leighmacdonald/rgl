@@ -121,8 +121,7 @@ type Player struct {
 
 func Profile(ctx context.Context, sid64 steamid.SID64) (*Player, error) {
 	var player Player
-	errProfile := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/profile/%d", sid64)), nil, &player)
-	if errProfile != nil {
+	if errProfile := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/profile/%d", sid64)), nil, &player); errProfile != nil {
 		return nil, errProfile
 	}
 	return &player, nil
@@ -142,7 +141,7 @@ type ProfileTeam struct {
 	FormatName   string    `json:"formatName"`
 	RegionId     int       `json:"regionId"`
 	RegionName   string    `json:"regionName"`
-	SeasonId     int       `json:"seasonId"`
+	SeasonId     int64     `json:"seasonId"`
 	SeasonName   string    `json:"seasonName"`
 	StartedAt    time.Time `json:"startedAt"`
 	DivisionId   int       `json:"divisionId"`
