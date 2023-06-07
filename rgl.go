@@ -36,10 +36,6 @@ func call(ctx context.Context, method string, fullUrl string, body any, receiver
 	if errResp != nil {
 		return errors.Wrap(errResp, "Failed to call endpoint")
 	}
-	// TODO influence rate limit bucket?
-	//rateLimit = resp.Header.Get("X-Ratelimit-Limit")
-	//rateRemaining = resp.Header.Get("X-Ratelimit-Remaining")
-	//rateReset = resp.Header.Get("X-Ratelimit-Reset")
 	respBody, errRead := io.ReadAll(resp.Body)
 	if errRead != nil {
 		return errors.Wrap(errRead, "Failed to read response body")
@@ -335,6 +331,7 @@ type SeasonOverview struct {
 	MatchesPlayedDuringSeason []int          `json:"matchesPlayedDuringSeason"`
 }
 
+// Season fetched and returns a SeasonOverview containing high level info about the season as a whole.
 func Season(ctx context.Context, seasonId int64) (*SeasonOverview, error) {
 	if seasonId <= 0 {
 		return nil, ErrOutOfRange
