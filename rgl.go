@@ -5,52 +5,64 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/leighmacdonald/steamid/v2/steamid"
-	"github.com/pkg/errors"
 	"io"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/pkg/errors"
 )
 
 const (
-	baseUrl = "https://api.rgl.gg/v0"
+	baseURL       = "https://api.rgl.gg/v0"
+	maxQueryCount = 100
 )
 
-func call(ctx context.Context, method string, fullUrl string, body any, receiver any) error {
+var client = NewClient() //nolint:gochecknoglobals
+
+func call(ctx context.Context, method string, fullURL string, body any, receiver any) error {
 	var reqBody io.Reader
+
 	if body != nil {
 		rb, errMarshal := json.Marshal(body)
 		if errMarshal != nil {
-			return errMarshal
+			return errors.Wrap(errMarshal, "Failed to marshal payload")
 		}
+
 		reqBody = bytes.NewReader(rb)
 	}
 
-	req, errReq := http.NewRequestWithContext(ctx, method, fullUrl, reqBody)
+	req, errReq := http.NewRequestWithContext(ctx, method, fullURL, reqBody)
 	if errReq != nil {
 		return errors.Wrap(errReq, "Failed to create request")
 	}
+
 	req.Header.Add("Content-Type", `application/json`)
+
 	resp, errResp := client.Do(ctx, req)
 	if errResp != nil {
 		return errors.Wrap(errResp, "Failed to call endpoint")
 	}
+
 	respBody, errRead := io.ReadAll(resp.Body)
 	if errRead != nil {
 		return errors.Wrap(errRead, "Failed to read response body")
 	}
+
 	defer func() {
 		_ = resp.Body.Close()
 	}()
-	if errJson := json.Unmarshal(respBody, &receiver); errJson != nil {
-		return errors.Wrap(errJson, "Failed to unmarshal json payload")
+
+	if errJSON := json.Unmarshal(respBody, &receiver); errJSON != nil {
+		return errors.Wrap(errJSON, "Failed to unmarshal json payload")
 	}
+
 	return nil
 }
 
 type Ban struct {
-	SteamId   steamid.SID64 `json:"steamId,float64"`
+	SteamID   steamid.SID64 `json:"steamId"`
 	Alias     string        `json:"alias"`
 	ExpiresAt time.Time     `json:"expiresAt"`
 	CreatedAt time.Time     `json:"createdAt"`
@@ -60,9 +72,10 @@ type Ban struct {
 var ErrOutOfRange = errors.New("Value out of range")
 
 func validateQuery(take int, skip int) error {
-	if take > 100 || take < 0 || skip < 0 {
+	if take > maxQueryCount || take < 0 || skip < 0 {
 		return ErrOutOfRange
 	}
+
 	return nil
 }
 
@@ -70,11 +83,14 @@ func Bans(ctx context.Context, take int, skip int) ([]Ban, error) {
 	if errValidate := validateQuery(take, skip); errValidate != nil {
 		return nil, errValidate
 	}
+
 	var bans []Ban
+
 	errBans := call(ctx, http.MethodGet, mkPagedPath("/bans/paged", take, skip), nil, &bans)
 	if errBans != nil {
 		return nil, errBans
 	}
+
 	return bans, nil
 }
 
@@ -91,12 +107,12 @@ type PlayerTeams struct {
 }
 
 type PlayerTeam struct {
-	Id           int    `json:"id"`
+	ID           int    `json:"id"`
 	Tag          string `json:"tag"`
 	Name         string `json:"name"`
 	Status       string `json:"status"`
-	SeasonId     int    `json:"seasonId"`
-	DivisionId   int    `json:"divisionId"`
+	SeasonID     int    `json:"seasonId"`
+	DivisionID   int    `json:"divisionId"`
 	DivisionName string `json:"divisionName"`
 }
 
@@ -106,7 +122,7 @@ type PlayerBanInformation struct {
 }
 
 type Player struct {
-	SteamId        steamid.SID64         `json:"steamId,float64"`
+	SteamID        steamid.SID64         `json:"steamId"`
 	Avatar         string                `json:"avatar"`
 	Name           string                `json:"name"`
 	UpdatedAt      time.Time             `json:"updatedAt"`
@@ -115,11 +131,13 @@ type Player struct {
 	CurrentTeams   PlayerTeams           `json:"currentTeams"`
 }
 
-func Profile(ctx context.Context, sid64 steamid.SID64) (*Player, error) {
+func Profile(ctx context.Context, steamID steamid.SID64) (*Player, error) {
 	var player Player
-	if errProfile := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/profile/%d", sid64)), nil, &player); errProfile != nil {
+	if errProfile := call(ctx, http.MethodGet,
+		mkPath(fmt.Sprintf("/profile/%d", steamID.Int64())), nil, &player); errProfile != nil {
 		return nil, errProfile
 	}
+
 	return &player, nil
 }
 
@@ -133,28 +151,30 @@ type TeamStats struct {
 }
 
 type ProfileTeam struct {
-	FormatId     int       `json:"formatId"`
+	FormatID     int       `json:"formatId"`
 	FormatName   string    `json:"formatName"`
-	RegionId     int       `json:"regionId"`
+	RegionID     int       `json:"regionId"`
 	RegionName   string    `json:"regionName"`
-	SeasonId     int64     `json:"seasonId"`
+	SeasonID     int64     `json:"seasonId"`
 	SeasonName   string    `json:"seasonName"`
 	StartedAt    time.Time `json:"startedAt"`
-	DivisionId   int       `json:"divisionId"`
+	DivisionID   int       `json:"divisionId"`
 	DivisionName string    `json:"divisionName"`
 	LeftAt       time.Time `json:"leftAt"`
 	TeamName     string    `json:"teamName"`
 	TeamTag      string    `json:"teamTag"`
-	TeamId       int       `json:"teamId"`
+	TeamID       int       `json:"teamId"`
 	Stats        TeamStats `json:"stats"`
 }
 
 func ProfileTeams(ctx context.Context, sid64 steamid.SID64) ([]ProfileTeam, error) {
 	var teams []ProfileTeam
-	errProfile := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/profile/%d/teams", sid64)), nil, &teams)
+
+	errProfile := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/profile/%d/teams", sid64.Int64())), nil, &teams)
 	if errProfile != nil {
 		return nil, errProfile
 	}
+
 	return teams, nil
 }
 
@@ -162,15 +182,18 @@ func Profiles(ctx context.Context, steamIIds steamid.Collection) ([]*Player, err
 	if len(steamIIds) > 100 || len(steamIIds) == 0 {
 		return nil, ErrOutOfRange
 	}
+
 	var players []*Player
-	if errPlayers := call(ctx, http.MethodPost, mkPath("/profile/getmany"), steamIIds.ToStringSlice(), &players); errPlayers != nil {
+	if errPlayers := call(ctx, http.MethodPost,
+		mkPath("/profile/getmany"), steamIIds.ToStringSlice(), &players); errPlayers != nil {
 		return nil, errPlayers
 	}
+
 	return players, nil
 }
 
 type SearchPlayerResults struct {
-	Results       steamid.Collection `json:"results,float64"`
+	Results       steamid.Collection `json:"results"`
 	Count         int                `json:"count"`
 	TotalHitCount int                `json:"totalHitCount"`
 }
@@ -180,22 +203,26 @@ type searchNameRequest struct {
 }
 
 func mkPagedPath(path string, take int, skip int) string {
-	u, errUrl := url.Parse(baseUrl + path)
-	if errUrl != nil {
-		panic(errUrl)
+	parsedURL, errURL := url.Parse(baseURL + path)
+	if errURL != nil {
+		panic(errURL)
 	}
-	values := u.Query()
+
+	values := parsedURL.Query()
 	values.Set("take", fmt.Sprintf("%d", take))
 	values.Set("skip", fmt.Sprintf("%d", skip))
-	u.RawQuery = values.Encode()
-	return u.String()
+
+	parsedURL.RawQuery = values.Encode()
+
+	return parsedURL.String()
 }
 
 func mkPath(path string) string {
-	u, errUrl := url.Parse(baseUrl + path)
-	if errUrl != nil {
-		panic(errUrl)
+	u, errURL := url.Parse(baseURL + path)
+	if errURL != nil {
+		panic(errURL)
 	}
+
 	return u.String()
 }
 
@@ -203,21 +230,24 @@ func SearchPlayer(ctx context.Context, name string, take int, skip int) (*Search
 	if name == "" {
 		return nil, ErrOutOfRange
 	}
+
 	if errValidate := validateQuery(take, skip); errValidate != nil {
 		return nil, errValidate
 	}
+
 	var results SearchPlayerResults
 	if errSearch := call(ctx, http.MethodPost, mkPagedPath("/search/players", take, skip),
 		searchNameRequest{NameContains: name}, &results); errSearch != nil {
 		return nil, errSearch
 	}
+
 	return &results, nil
 }
 
 type MatchTeam struct {
 	TeamName string `json:"teamName"`
 	TeamTag  string `json:"teamTag"`
-	TeamId   int    `json:"teamId"`
+	TeamID   int    `json:"teamId"`
 	IsHome   bool   `json:"isHome"`
 	Points   string `json:"points"`
 }
@@ -229,11 +259,11 @@ type MatchMaps struct {
 }
 
 type MatchOverview struct {
-	MatchId      int         `json:"matchId"`
+	MatchID      int         `json:"matchId"`
 	SeasonName   string      `json:"seasonName"`
 	DivisionName string      `json:"divisionName"`
-	DivisionId   int         `json:"divisionId"`
-	SeasonId     int         `json:"seasonId"`
+	DivisionID   int         `json:"divisionId"`
+	SeasonID     int         `json:"seasonId"`
 	MatchDate    time.Time   `json:"matchDate"`
 	MatchName    string      `json:"matchName"`
 	IsForfeit    bool        `json:"isForfeit"`
@@ -242,14 +272,16 @@ type MatchOverview struct {
 	Maps         []MatchMaps `json:"maps"`
 }
 
-func Match(ctx context.Context, matchId int64) (*MatchOverview, error) {
-	if matchId <= 0 {
+func Match(ctx context.Context, matchID int64) (*MatchOverview, error) {
+	if matchID <= 0 {
 		return nil, ErrOutOfRange
 	}
+
 	var match MatchOverview
-	if errSearch := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/matches/%d", matchId)), nil, &match); errSearch != nil {
+	if errSearch := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/matches/%d", matchID)), nil, &match); errSearch != nil {
 		return nil, errSearch
 	}
+
 	return &match, nil
 }
 
@@ -259,26 +291,29 @@ func Matches(ctx context.Context, take int, skip int) ([]*MatchOverview, error) 
 	if errValidate := validateQuery(take, skip); errValidate != nil {
 		return nil, errValidate
 	}
+
 	var matches []*MatchOverview
-	if errSearch := call(ctx, http.MethodPost, mkPagedPath("/matches/paged", take, skip), emptyReq{}, &matches); errSearch != nil {
+	if errSearch := call(ctx, http.MethodPost,
+		mkPagedPath("/matches/paged", take, skip), emptyReq{}, &matches); errSearch != nil {
 		return nil, errSearch
 	}
+
 	return matches, nil
 }
 
 type TeamPlayer struct {
-	Name     string    `json:"name"`
-	SteamId  string    `json:"steamId"`
-	IsLeader bool      `json:"isLeader"`
-	JoinedAt time.Time `json:"joinedAt"`
-	LeftAt   time.Time `json:"leftAt"`
+	Name     string        `json:"name"`
+	SteamID  steamid.SID64 `json:"steamId"`
+	IsLeader bool          `json:"isLeader"`
+	JoinedAt time.Time     `json:"joinedAt"`
+	LeftAt   time.Time     `json:"leftAt"`
 }
 
 type TeamOverview struct {
-	TeamId       int          `json:"teamId"`
+	TeamID       int          `json:"teamId"`
 	LinkedTeams  []int        `json:"linkedTeams"`
-	SeasonId     int          `json:"seasonId"`
-	DivisionId   int          `json:"divisionId"`
+	SeasonID     int          `json:"seasonId"`
+	DivisionID   int          `json:"divisionId"`
 	DivisionName string       `json:"divisionName"`
 	TeamLeader   string       `json:"teamLeader"`
 	CreatedAt    time.Time    `json:"createdAt"`
@@ -289,14 +324,16 @@ type TeamOverview struct {
 	Players      []TeamPlayer `json:"players"`
 }
 
-func Team(ctx context.Context, teamId int64) (*TeamOverview, error) {
-	if teamId <= 0 {
+func Team(ctx context.Context, teamID int64) (*TeamOverview, error) {
+	if teamID <= 0 {
 		return nil, ErrOutOfRange
 	}
+
 	var team TeamOverview
-	if errCall := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/teams/%d", teamId)), nil, &team); errCall != nil {
+	if errCall := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/teams/%d", teamID)), nil, &team); errCall != nil {
 		return nil, errCall
 	}
+
 	return &team, nil
 }
 
@@ -310,14 +347,17 @@ func SearchTeam(ctx context.Context, name string, take int, skip int) (*SearchTe
 	if name == "" {
 		return nil, ErrOutOfRange
 	}
+
 	if errValidate := validateQuery(take, skip); errValidate != nil {
 		return nil, errValidate
 	}
+
 	var results SearchTeamResults
 	if errSearch := call(ctx, http.MethodPost, mkPagedPath("/search/teams", take, skip),
 		searchNameRequest{NameContains: name}, &results); errSearch != nil {
 		return nil, errSearch
 	}
+
 	return &results, nil
 }
 
@@ -332,13 +372,15 @@ type SeasonOverview struct {
 }
 
 // Season fetched and returns a SeasonOverview containing high level info about the season as a whole.
-func Season(ctx context.Context, seasonId int64) (*SeasonOverview, error) {
-	if seasonId <= 0 {
+func Season(ctx context.Context, seasonID int64) (*SeasonOverview, error) {
+	if seasonID <= 0 {
 		return nil, ErrOutOfRange
 	}
+
 	var season SeasonOverview
-	if errCall := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/seasons/%d", seasonId)), nil, &season); errCall != nil {
+	if errCall := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/seasons/%d", seasonID)), nil, &season); errCall != nil {
 		return nil, errCall
 	}
+
 	return &season, nil
 }
