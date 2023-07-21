@@ -21,6 +21,8 @@ const (
 
 var client = NewClient() //nolint:gochecknoglobals
 
+var ErrRateLimit = errors.New("rate limited (429)")
+
 func call(ctx context.Context, method string, fullURL string, body any, receiver any) error {
 	var reqBody io.Reader
 
@@ -45,14 +47,22 @@ func call(ctx context.Context, method string, fullURL string, body any, receiver
 		return errors.Wrap(errResp, "Failed to call endpoint")
 	}
 
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return ErrRateLimit
+	}
+
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed) {
+		return errors.Errorf("Invalid status code: %s", resp.Status)
+	}
+
 	respBody, errRead := io.ReadAll(resp.Body)
 	if errRead != nil {
 		return errors.Wrap(errRead, "Failed to read response body")
 	}
-
-	defer func() {
-		_ = resp.Body.Close()
-	}()
 
 	if errJSON := json.Unmarshal(respBody, &receiver); errJSON != nil {
 		return errors.Wrap(errJSON, "Failed to unmarshal json payload")
