@@ -40,6 +40,7 @@ func call(ctx context.Context, method string, fullURL string, body any, receiver
 		return errors.Wrap(errReq, "Failed to create request")
 	}
 
+	req.Header.Set("User-Agent", "bd-api/1.0")
 	req.Header.Add("Content-Type", `application/json`)
 
 	resp, errResp := client.Do(ctx, req)
@@ -221,7 +222,6 @@ func mkPagedPath(path string, take int, skip int) string {
 	values := parsedURL.Query()
 	values.Set("take", fmt.Sprintf("%d", take))
 	values.Set("skip", fmt.Sprintf("%d", skip))
-
 	parsedURL.RawQuery = values.Encode()
 
 	return parsedURL.String()

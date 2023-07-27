@@ -15,7 +15,7 @@ linters:
     - decorder
     #- depguard
     - dogsled
-    #- dupl
+    - dupl
     - dupword
     - durationcheck
     - errcheck
@@ -35,7 +35,7 @@ linters:
     - gochecknoglobals
     - gochecknoinits
     - gocognit
-    #- goconst
+    - goconst
     - gocritic
     - gocyclo
     - godot
@@ -56,7 +56,7 @@ linters:
     - importas
     - ineffassign
     - interfacebloat
-    #- ireturn
+    - ireturn
     - lll
     - loggercheck
     - maintidx
@@ -106,8 +106,8 @@ linters-settings:
     case:
       use-field-name: true
       rules:
-        json: snake
-        yaml: snake
+        json: upperSnake
+        yaml: upperSnake
   funlen:
     # Checks the number of lines in a function.
     # If lower than 0, disable the check.
