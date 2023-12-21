@@ -19,11 +19,9 @@ const (
 	maxQueryCount = 100
 )
 
-var client = NewClient() //nolint:gochecknoglobals
-
 var ErrRateLimit = errors.New("rate limited (429)")
 
-func call(ctx context.Context, method string, fullURL string, body any, receiver any) error {
+func call(ctx context.Context, httpClient *http.Client, method string, fullURL string, body any, receiver any) error {
 	var reqBody io.Reader
 
 	if body != nil {
@@ -43,7 +41,7 @@ func call(ctx context.Context, method string, fullURL string, body any, receiver
 	req.Header.Set("User-Agent", "bd-api/1.0")
 	req.Header.Add("Content-Type", `application/json`)
 
-	resp, errResp := client.Do(ctx, req)
+	resp, errResp := httpClient.Do(req)
 	if errResp != nil {
 		return errors.Wrap(errResp, "Failed to call endpoint")
 	}
@@ -73,11 +71,11 @@ func call(ctx context.Context, method string, fullURL string, body any, receiver
 }
 
 type Ban struct {
-	SteamID   steamid.SID64 `json:"steamId"`
-	Alias     string        `json:"alias"`
-	ExpiresAt time.Time     `json:"expiresAt"`
-	CreatedAt time.Time     `json:"createdAt"`
-	Reason    string        `json:"reason"`
+	SteamID   string    `json:"steamId"`
+	Alias     string    `json:"alias"`
+	ExpiresAt time.Time `json:"expiresAt"`
+	CreatedAt time.Time `json:"createdAt"`
+	Reason    string    `json:"reason"`
 }
 
 var ErrOutOfRange = errors.New("Value out of range")
@@ -90,14 +88,14 @@ func validateQuery(take int, skip int) error {
 	return nil
 }
 
-func Bans(ctx context.Context, take int, skip int) ([]Ban, error) {
+func Bans(ctx context.Context, httpClient *http.Client, take int, skip int) ([]Ban, error) {
 	if errValidate := validateQuery(take, skip); errValidate != nil {
 		return nil, errValidate
 	}
 
 	var bans []Ban
 
-	errBans := call(ctx, http.MethodGet, mkPagedPath("/bans/paged", take, skip), nil, &bans)
+	errBans := call(ctx, httpClient, http.MethodGet, mkPagedPath("/bans/paged", take, skip), nil, &bans)
 	if errBans != nil {
 		return nil, errBans
 	}
@@ -142,9 +140,9 @@ type Player struct {
 	CurrentTeams   PlayerTeams           `json:"currentTeams"`
 }
 
-func Profile(ctx context.Context, steamID steamid.SID64) (*Player, error) {
+func Profile(ctx context.Context, httpClient *http.Client, steamID steamid.SID64) (*Player, error) {
 	var player Player
-	if errProfile := call(ctx, http.MethodGet,
+	if errProfile := call(ctx, httpClient, http.MethodGet,
 		mkPath(fmt.Sprintf("/profile/%d", steamID.Int64())), nil, &player); errProfile != nil {
 		return nil, errProfile
 	}
@@ -178,10 +176,10 @@ type ProfileTeam struct {
 	Stats        TeamStats `json:"stats"`
 }
 
-func ProfileTeams(ctx context.Context, sid64 steamid.SID64) ([]ProfileTeam, error) {
+func ProfileTeams(ctx context.Context, httpClient *http.Client, sid64 steamid.SID64) ([]ProfileTeam, error) {
 	var teams []ProfileTeam
 
-	errProfile := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/profile/%d/teams", sid64.Int64())), nil, &teams)
+	errProfile := call(ctx, httpClient, http.MethodGet, mkPath(fmt.Sprintf("/profile/%d/teams", sid64.Int64())), nil, &teams)
 	if errProfile != nil {
 		return nil, errProfile
 	}
@@ -189,13 +187,13 @@ func ProfileTeams(ctx context.Context, sid64 steamid.SID64) ([]ProfileTeam, erro
 	return teams, nil
 }
 
-func Profiles(ctx context.Context, steamIIds steamid.Collection) ([]*Player, error) {
+func Profiles(ctx context.Context, httpClient *http.Client, steamIIds steamid.Collection) ([]*Player, error) {
 	if len(steamIIds) > 100 || len(steamIIds) == 0 {
 		return nil, ErrOutOfRange
 	}
 
 	var players []*Player
-	if errPlayers := call(ctx, http.MethodPost,
+	if errPlayers := call(ctx, httpClient, http.MethodPost,
 		mkPath("/profile/getmany"), steamIIds.ToStringSlice(), &players); errPlayers != nil {
 		return nil, errPlayers
 	}
@@ -236,7 +234,7 @@ func mkPath(path string) string {
 	return u.String()
 }
 
-func SearchPlayer(ctx context.Context, name string, take int, skip int) (*SearchPlayerResults, error) {
+func SearchPlayer(ctx context.Context, httpClient *http.Client, name string, take int, skip int) (*SearchPlayerResults, error) {
 	if name == "" {
 		return nil, ErrOutOfRange
 	}
@@ -246,7 +244,7 @@ func SearchPlayer(ctx context.Context, name string, take int, skip int) (*Search
 	}
 
 	var results SearchPlayerResults
-	if errSearch := call(ctx, http.MethodPost, mkPagedPath("/search/players", take, skip),
+	if errSearch := call(ctx, httpClient, http.MethodPost, mkPagedPath("/search/players", take, skip),
 		searchNameRequest{NameContains: name}, &results); errSearch != nil {
 		return nil, errSearch
 	}
@@ -282,13 +280,13 @@ type MatchOverview struct {
 	Maps         []MatchMaps `json:"maps"`
 }
 
-func Match(ctx context.Context, matchID int64) (*MatchOverview, error) {
+func Match(ctx context.Context, httpClient *http.Client, matchID int64) (*MatchOverview, error) {
 	if matchID <= 0 {
 		return nil, ErrOutOfRange
 	}
 
 	var match MatchOverview
-	if errSearch := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/matches/%d", matchID)), nil, &match); errSearch != nil {
+	if errSearch := call(ctx, httpClient, http.MethodGet, mkPath(fmt.Sprintf("/matches/%d", matchID)), nil, &match); errSearch != nil {
 		return nil, errSearch
 	}
 
@@ -297,13 +295,13 @@ func Match(ctx context.Context, matchID int64) (*MatchOverview, error) {
 
 type emptyReq struct{}
 
-func Matches(ctx context.Context, take int, skip int) ([]*MatchOverview, error) {
+func Matches(ctx context.Context, httpClient *http.Client, take int, skip int) ([]*MatchOverview, error) {
 	if errValidate := validateQuery(take, skip); errValidate != nil {
 		return nil, errValidate
 	}
 
 	var matches []*MatchOverview
-	if errSearch := call(ctx, http.MethodPost,
+	if errSearch := call(ctx, httpClient, http.MethodPost,
 		mkPagedPath("/matches/paged", take, skip), emptyReq{}, &matches); errSearch != nil {
 		return nil, errSearch
 	}
@@ -312,11 +310,13 @@ func Matches(ctx context.Context, take int, skip int) ([]*MatchOverview, error) 
 }
 
 type TeamPlayer struct {
-	Name     string        `json:"name"`
-	SteamID  steamid.SID64 `json:"steamId"`
-	IsLeader bool          `json:"isLeader"`
-	JoinedAt time.Time     `json:"joinedAt"`
-	LeftAt   time.Time     `json:"leftAt"`
+	Name      string        `json:"name"`
+	SteamID   steamid.SID64 `json:"steamId"`
+	IsLeader  bool          `json:"isLeader"`
+	JoinedAt  time.Time     `json:"joinedAt"`
+	LeftAt    *time.Time    `json:"leftAt"`
+	CreatedOn time.Time     `json:"created_on"`
+	UpdatedOn time.Time     `json:"updatedOn"`
 }
 
 type TeamOverview struct {
@@ -334,13 +334,13 @@ type TeamOverview struct {
 	Players      []TeamPlayer `json:"players"`
 }
 
-func Team(ctx context.Context, teamID int64) (*TeamOverview, error) {
+func Team(ctx context.Context, httpClient *http.Client, teamID int64) (*TeamOverview, error) {
 	if teamID <= 0 {
 		return nil, ErrOutOfRange
 	}
 
 	var team TeamOverview
-	if errCall := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/teams/%d", teamID)), nil, &team); errCall != nil {
+	if errCall := call(ctx, httpClient, http.MethodGet, mkPath(fmt.Sprintf("/teams/%d", teamID)), nil, &team); errCall != nil {
 		return nil, errCall
 	}
 
@@ -353,7 +353,7 @@ type SearchTeamResults struct {
 	TotalHitCount int      `json:"totalHitCount"`
 }
 
-func SearchTeam(ctx context.Context, name string, take int, skip int) (*SearchTeamResults, error) {
+func SearchTeam(ctx context.Context, httpClient *http.Client, name string, take int, skip int) (*SearchTeamResults, error) {
 	if name == "" {
 		return nil, ErrOutOfRange
 	}
@@ -363,7 +363,7 @@ func SearchTeam(ctx context.Context, name string, take int, skip int) (*SearchTe
 	}
 
 	var results SearchTeamResults
-	if errSearch := call(ctx, http.MethodPost, mkPagedPath("/search/teams", take, skip),
+	if errSearch := call(ctx, httpClient, http.MethodPost, mkPagedPath("/search/teams", take, skip),
 		searchNameRequest{NameContains: name}, &results); errSearch != nil {
 		return nil, errSearch
 	}
@@ -382,13 +382,13 @@ type SeasonOverview struct {
 }
 
 // Season fetched and returns a SeasonOverview containing high level info about the season as a whole.
-func Season(ctx context.Context, seasonID int64) (*SeasonOverview, error) {
+func Season(ctx context.Context, httpClient *http.Client, seasonID int64) (*SeasonOverview, error) {
 	if seasonID <= 0 {
 		return nil, ErrOutOfRange
 	}
 
 	var season SeasonOverview
-	if errCall := call(ctx, http.MethodGet, mkPath(fmt.Sprintf("/seasons/%d", seasonID)), nil, &season); errCall != nil {
+	if errCall := call(ctx, httpClient, http.MethodGet, mkPath(fmt.Sprintf("/seasons/%d", seasonID)), nil, &season); errCall != nil {
 		return nil, errCall
 	}
 
