@@ -10,13 +10,12 @@ import (
 )
 
 const (
-	maxBucket     = 50
-	limitInterval = 10 * time.Second
+	maxBucket      = 1
+	limitInterval  = 15 * time.Second
+	defaultTimeout = 15 * time.Second
 )
 
-var (
-	ErrRequestWait = errors.New("failed to wait for request")
-)
+var ErrRequestWait = errors.New("failed to wait for request")
 
 type LimiterClient struct {
 	*http.Client
@@ -38,7 +37,8 @@ func (c *LimiterClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 
 func NewClient() *LimiterClient {
 	return &LimiterClient{
-		Client:  &http.Client{Timeout: time.Second * 15},
+		Client: &http.Client{ //nolint:exhaustruct
+			Timeout: defaultTimeout},
 		Limiter: rate.NewLimiter(rate.Every(limitInterval), maxBucket),
 	}
 }

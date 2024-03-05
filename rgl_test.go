@@ -62,7 +62,6 @@ func testProfileTeams(client *rgl.LimiterClient) func(t *testing.T) {
 
 func testSearchPlayer(client *rgl.LimiterClient) func(t *testing.T) {
 	return func(t *testing.T) {
-
 		results, errRequest := rgl.SearchPlayer(context.Background(), client.Client, "camp3r", 100, 0)
 		require.NoError(t, errRequest)
 		require.True(t, len(results.Results) > 0)
