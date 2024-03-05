@@ -179,7 +179,8 @@ type ProfileTeam struct {
 func ProfileTeams(ctx context.Context, httpClient *http.Client, sid64 steamid.SID64) ([]ProfileTeam, error) {
 	var teams []ProfileTeam
 
-	errProfile := call(ctx, httpClient, http.MethodGet, mkPath(fmt.Sprintf("/profile/%d/teams", sid64.Int64())), nil, &teams)
+	path := mkPath(fmt.Sprintf("/profile/%d/teams", sid64.Int64()))
+	errProfile := call(ctx, httpClient, http.MethodGet, path, nil, &teams)
 	if errProfile != nil {
 		return nil, errProfile
 	}

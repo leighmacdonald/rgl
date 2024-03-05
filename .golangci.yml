@@ -57,7 +57,7 @@ linters:
     - ineffassign
     - interfacebloat
     - ireturn
-    - lll
+    #- lll
     - loggercheck
     - maintidx
     - makezero

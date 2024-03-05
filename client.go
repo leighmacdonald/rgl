@@ -34,7 +34,7 @@ func (c *LimiterClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 
 func NewClient() *LimiterClient {
 	return &LimiterClient{
-		Client:  http.DefaultClient,
+		Client:  &http.Client{Timeout: time.Second * 15},
 		Limiter: rate.NewLimiter(rate.Every(limitInterval), maxBucket),
 	}
 }
