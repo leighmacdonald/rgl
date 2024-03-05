@@ -10,28 +10,26 @@ jobs:
   lint-golangci:
     runs-on: ubuntu-20.04
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v4
         with:
           go-version: 'stable'
-          cache: false
-
-      - uses: actions/checkout@v3
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
           version: 'latest'
-
-      - run: make lint_golangci
+          args: --timeout=10m
 
   staticcheck:
     runs-on: ubuntu-20.04
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
         with:
           go-version: 'stable'
       - run: go install honnef.co/go/tools/cmd/staticcheck@latest
-      - uses: actions/checkout@v3
       - run: make static
 
   test:

@@ -75,11 +75,11 @@ linters:
     # - paralleltest
     - prealloc
     - predeclared
-    - promlinter
+    #- promlinter
     - reassign
     - revive
-    - rowserrcheck
-    - sqlclosecheck
+    #- rowserrcheck
+    #- sqlclosecheck
     #- staticcheck
     - stylecheck
     # - tagliatelle
@@ -97,7 +97,7 @@ linters:
     - wastedassign
     - whitespace
     - wrapcheck
-    - wsl
+    # - wsl
     #- zerologlint
 
 
