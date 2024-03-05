@@ -2,16 +2,20 @@ package rgl
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
-	"github.com/pkg/errors"
 	"golang.org/x/time/rate"
 )
 
 const (
 	maxBucket     = 50
 	limitInterval = 10 * time.Second
+)
+
+var (
+	ErrRequestWait = errors.New("failed to wait for request")
 )
 
 type LimiterClient struct {
@@ -21,12 +25,12 @@ type LimiterClient struct {
 
 func (c *LimiterClient) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
 	if errWait := c.Wait(ctx); errWait != nil {
-		return nil, errors.Wrap(errWait, "Failed to wait for request")
+		return nil, errors.Join(errWait, ErrRequestWait)
 	}
 
 	resp, errDo := c.Client.Do(req)
 	if errDo != nil {
-		return nil, errors.Wrap(errDo, "Failed to make request")
+		return nil, errors.Join(errDo, ErrRequestCreate)
 	}
 
 	return resp, nil

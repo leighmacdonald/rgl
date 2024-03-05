@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	"github.com/leighmacdonald/steamid/v3/steamid"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -19,7 +19,15 @@ const (
 	maxQueryCount = 100
 )
 
-var ErrRateLimit = errors.New("rate limited (429)")
+var (
+	ErrRateLimit      = errors.New("rate limited (429)")
+	ErrRequestClose   = errors.New("failed to close request body")
+	ErrRequestEncode  = errors.New("failed to marshal request payload")
+	ErrRequestDecode  = errors.New("failed to unmarshal json response payload")
+	ErrRequestCreate  = errors.New("failed to make request")
+	ErrRequestPerform = errors.New("failed to call endpoint")
+	ErrRequestStatus  = errors.New("invalid status code")
+)
 
 func call(ctx context.Context, httpClient *http.Client, method string, fullURL string, body any, receiver any) error {
 	var reqBody io.Reader
@@ -27,7 +35,7 @@ func call(ctx context.Context, httpClient *http.Client, method string, fullURL s
 	if body != nil {
 		rb, errMarshal := json.Marshal(body)
 		if errMarshal != nil {
-			return errors.Wrap(errMarshal, "Failed to marshal payload")
+			return errors.Join(errMarshal, ErrRequestEncode)
 		}
 
 		reqBody = bytes.NewReader(rb)
@@ -35,7 +43,7 @@ func call(ctx context.Context, httpClient *http.Client, method string, fullURL s
 
 	req, errReq := http.NewRequestWithContext(ctx, method, fullURL, reqBody)
 	if errReq != nil {
-		return errors.Wrap(errReq, "Failed to create request")
+		return errors.Join(errReq, ErrRequestCreate)
 	}
 
 	req.Header.Set("User-Agent", "bd-api/1.0")
@@ -43,7 +51,7 @@ func call(ctx context.Context, httpClient *http.Client, method string, fullURL s
 
 	resp, errResp := httpClient.Do(req)
 	if errResp != nil {
-		return errors.Wrap(errResp, "Failed to call endpoint")
+		return errors.Join(errResp, ErrRequestPerform)
 	}
 
 	defer func() {
@@ -55,16 +63,15 @@ func call(ctx context.Context, httpClient *http.Client, method string, fullURL s
 	}
 
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed) {
-		return errors.Errorf("Invalid status code: %s", resp.Status)
+		return fmt.Errorf("%w: %s", ErrRequestStatus, resp.Status)
 	}
 
-	respBody, errRead := io.ReadAll(resp.Body)
-	if errRead != nil {
-		return errors.Wrap(errRead, "Failed to read response body")
+	if errJSON := json.NewDecoder(resp.Body).Decode(&receiver); errJSON != nil {
+		return errors.Join(errJSON, ErrRequestDecode)
 	}
 
-	if errJSON := json.Unmarshal(respBody, &receiver); errJSON != nil {
-		return errors.Wrap(errJSON, "Failed to unmarshal json payload")
+	if errClose := resp.Body.Close(); errClose != nil {
+		return errors.Join(errClose, ErrRequestClose)
 	}
 
 	return nil
@@ -78,7 +85,7 @@ type Ban struct {
 	Reason    string    `json:"reason"`
 }
 
-var ErrOutOfRange = errors.New("Value out of range")
+var ErrOutOfRange = errors.New("value out of range")
 
 func validateQuery(take int, skip int) error {
 	if take > maxQueryCount || take < 0 || skip < 0 {
