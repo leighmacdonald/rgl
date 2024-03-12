@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/leighmacdonald/rgl"
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 	"github.com/stretchr/testify/require"
 )
 

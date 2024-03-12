@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 )
 
 const (
@@ -138,7 +138,7 @@ type PlayerBanInformation struct {
 }
 
 type Player struct {
-	SteamID        steamid.SID64         `json:"steamId"`
+	SteamID        steamid.SteamID       `json:"steamId"`
 	Avatar         string                `json:"avatar"`
 	Name           string                `json:"name"`
 	UpdatedAt      time.Time             `json:"updatedAt"`
@@ -147,7 +147,7 @@ type Player struct {
 	CurrentTeams   PlayerTeams           `json:"currentTeams"`
 }
 
-func Profile(ctx context.Context, httpClient *http.Client, steamID steamid.SID64) (*Player, error) {
+func Profile(ctx context.Context, httpClient *http.Client, steamID steamid.SteamID) (*Player, error) {
 	var player Player
 	if errProfile := call(ctx, httpClient, http.MethodGet,
 		mkPath(fmt.Sprintf("/profile/%d", steamID.Int64())), nil, &player); errProfile != nil {
@@ -183,7 +183,7 @@ type ProfileTeam struct {
 	Stats        TeamStats `json:"stats"`
 }
 
-func ProfileTeams(ctx context.Context, httpClient *http.Client, sid64 steamid.SID64) ([]ProfileTeam, error) {
+func ProfileTeams(ctx context.Context, httpClient *http.Client, sid64 steamid.SteamID) ([]ProfileTeam, error) {
 	var teams []ProfileTeam
 
 	path := mkPath(fmt.Sprintf("/profile/%d/teams", sid64.Int64()))
@@ -318,13 +318,13 @@ func Matches(ctx context.Context, httpClient *http.Client, take int, skip int) (
 }
 
 type TeamPlayer struct {
-	Name      string        `json:"name"`
-	SteamID   steamid.SID64 `json:"steamId"`
-	IsLeader  bool          `json:"isLeader"`
-	JoinedAt  time.Time     `json:"joinedAt"`
-	LeftAt    *time.Time    `json:"leftAt"`
-	CreatedOn time.Time     `json:"created_on"`
-	UpdatedOn time.Time     `json:"updatedOn"`
+	Name      string          `json:"name"`
+	SteamID   steamid.SteamID `json:"steamId"`
+	IsLeader  bool            `json:"isLeader"`
+	JoinedAt  time.Time       `json:"joinedAt"`
+	LeftAt    *time.Time      `json:"leftAt"`
+	CreatedOn time.Time       `json:"created_on"`
+	UpdatedOn time.Time       `json:"updatedOn"`
 }
 
 type TeamOverview struct {
