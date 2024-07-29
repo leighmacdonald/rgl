@@ -265,7 +265,7 @@ type MatchTeam struct {
 	TeamTag  string `json:"teamTag"`
 	TeamID   int    `json:"teamId"`
 	IsHome   bool   `json:"isHome"`
-	Points   string `json:"points"`
+	Points   int    `json:"points,string"`
 }
 
 type MatchMaps struct {
@@ -283,6 +283,7 @@ type MatchOverview struct {
 	MatchDate    time.Time   `json:"matchDate"`
 	MatchName    string      `json:"matchName"`
 	IsForfeit    bool        `json:"isForfeit"`
+	RegionID     int         `json:"regionId"`
 	Winner       int         `json:"winner"`
 	Teams        []MatchTeam `json:"teams"`
 	Maps         []MatchMaps `json:"maps"`
