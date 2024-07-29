@@ -261,11 +261,11 @@ func SearchPlayer(ctx context.Context, httpClient *http.Client, name string, tak
 }
 
 type MatchTeam struct {
-	TeamName string `json:"teamName"`
-	TeamTag  string `json:"teamTag"`
-	TeamID   int    `json:"teamId"`
-	IsHome   bool   `json:"isHome"`
-	Points   int    `json:"points,string"`
+	TeamName string  `json:"teamName"`
+	TeamTag  string  `json:"teamTag"`
+	TeamID   int     `json:"teamId"`
+	IsHome   bool    `json:"isHome"`
+	Points   float32 `json:"points,string"`
 }
 
 type MatchMaps struct {
