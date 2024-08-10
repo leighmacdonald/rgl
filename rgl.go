@@ -29,7 +29,11 @@ var (
 	ErrRequestStatus  = errors.New("invalid status code")
 )
 
-func call(ctx context.Context, httpClient *http.Client, method string, fullURL string, body any, receiver any) error {
+type HTTPExecutor interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+func call(ctx context.Context, httpClient HTTPExecutor, method string, fullURL string, body any, receiver any) error {
 	var reqBody io.Reader
 
 	if body != nil {
@@ -95,7 +99,7 @@ func validateQuery(take int, skip int) error {
 	return nil
 }
 
-func Bans(ctx context.Context, httpClient *http.Client, take int, skip int) ([]Ban, error) {
+func Bans(ctx context.Context, httpClient HTTPExecutor, take int, skip int) ([]Ban, error) {
 	if errValidate := validateQuery(take, skip); errValidate != nil {
 		return nil, errValidate
 	}
@@ -147,7 +151,7 @@ type Player struct {
 	CurrentTeams   PlayerTeams           `json:"currentTeams"`
 }
 
-func Profile(ctx context.Context, httpClient *http.Client, steamID steamid.SteamID) (*Player, error) {
+func Profile(ctx context.Context, httpClient HTTPExecutor, steamID steamid.SteamID) (*Player, error) {
 	var player Player
 	if errProfile := call(ctx, httpClient, http.MethodGet,
 		mkPath(fmt.Sprintf("/profile/%d", steamID.Int64())), nil, &player); errProfile != nil {
@@ -183,7 +187,7 @@ type ProfileTeam struct {
 	Stats        TeamStats `json:"stats"`
 }
 
-func ProfileTeams(ctx context.Context, httpClient *http.Client, sid64 steamid.SteamID) ([]ProfileTeam, error) {
+func ProfileTeams(ctx context.Context, httpClient HTTPExecutor, sid64 steamid.SteamID) ([]ProfileTeam, error) {
 	var teams []ProfileTeam
 
 	path := mkPath(fmt.Sprintf("/profile/%d/teams", sid64.Int64()))
@@ -195,7 +199,7 @@ func ProfileTeams(ctx context.Context, httpClient *http.Client, sid64 steamid.St
 	return teams, nil
 }
 
-func Profiles(ctx context.Context, httpClient *http.Client, steamIIds steamid.Collection) ([]*Player, error) {
+func Profiles(ctx context.Context, httpClient HTTPExecutor, steamIIds steamid.Collection) ([]*Player, error) {
 	if len(steamIIds) > 100 || len(steamIIds) == 0 {
 		return nil, ErrOutOfRange
 	}
@@ -242,7 +246,7 @@ func mkPath(path string) string {
 	return u.String()
 }
 
-func SearchPlayer(ctx context.Context, httpClient *http.Client, name string, take int, skip int) (*SearchPlayerResults, error) {
+func SearchPlayer(ctx context.Context, httpClient HTTPExecutor, name string, take int, skip int) (*SearchPlayerResults, error) {
 	if name == "" {
 		return nil, ErrOutOfRange
 	}
@@ -289,7 +293,7 @@ type MatchOverview struct {
 	Maps         []MatchMaps `json:"maps"`
 }
 
-func Match(ctx context.Context, httpClient *http.Client, matchID int64) (*MatchOverview, error) {
+func Match(ctx context.Context, httpClient HTTPExecutor, matchID int64) (*MatchOverview, error) {
 	if matchID <= 0 {
 		return nil, ErrOutOfRange
 	}
@@ -304,7 +308,7 @@ func Match(ctx context.Context, httpClient *http.Client, matchID int64) (*MatchO
 
 type emptyReq struct{}
 
-func Matches(ctx context.Context, httpClient *http.Client, take int, skip int) ([]*MatchOverview, error) {
+func Matches(ctx context.Context, httpClient HTTPExecutor, take int, skip int) ([]*MatchOverview, error) {
 	if errValidate := validateQuery(take, skip); errValidate != nil {
 		return nil, errValidate
 	}
@@ -343,7 +347,7 @@ type TeamOverview struct {
 	Players      []TeamPlayer `json:"players"`
 }
 
-func Team(ctx context.Context, httpClient *http.Client, teamID int64) (*TeamOverview, error) {
+func Team(ctx context.Context, httpClient HTTPExecutor, teamID int64) (*TeamOverview, error) {
 	if teamID <= 0 {
 		return nil, ErrOutOfRange
 	}
@@ -362,7 +366,7 @@ type SearchTeamResults struct {
 	TotalHitCount int      `json:"totalHitCount"`
 }
 
-func SearchTeam(ctx context.Context, httpClient *http.Client, name string, take int, skip int) (*SearchTeamResults, error) {
+func SearchTeam(ctx context.Context, httpClient HTTPExecutor, name string, take int, skip int) (*SearchTeamResults, error) {
 	if name == "" {
 		return nil, ErrOutOfRange
 	}
@@ -391,7 +395,7 @@ type SeasonOverview struct {
 }
 
 // Season fetched and returns a SeasonOverview containing high level info about the season as a whole.
-func Season(ctx context.Context, httpClient *http.Client, seasonID int64) (*SeasonOverview, error) {
+func Season(ctx context.Context, httpClient HTTPExecutor, seasonID int64) (*SeasonOverview, error) {
 	if seasonID <= 0 {
 		return nil, ErrOutOfRange
 	}
